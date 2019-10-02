@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include "error.h"
+
 typedef struct{
 	int num_bit; //number of bits
 	char* entries; //number of entries

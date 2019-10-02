@@ -197,7 +197,7 @@ int DiskDriver_getFreeBlock(DiskDriver* disk, int start){
 
 
 int DiskDriver_flush(DiskDriver* disk){
-	int bitmap_size=disk->header->num_blocks / bit_in_byte +1;
+	int bitmap_size=disk->header->num_blocks / 8 +1;
 	//flushing header and bitmap on file
 	//msync flushes changes made on a mmapped file
 	int ret=msync(disk->header, (size_t)sizeof(DiskHeader)+bitmap_size, MS_SYNC);
