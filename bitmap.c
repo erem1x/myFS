@@ -42,12 +42,12 @@ int BitMap_set(BitMap* bmp, int pos, int status){
 	unsigned char changer=1 << map.bit_num; //mask for the bit in the byte
 	unsigned char to_be_changed=bmp->entries[map.entry_num]; //byte to apply the mask	
 	if(status==1){
-		bmp->entries[map.entry_num] = to_be_changed | changer; //mask  through OR to get 1
+		bmp->entries[map.entry_num] = to_be_changed | changer; //masking to get 1 (OR)
 		return to_be_changed | changer;
 	}
 	
 	else{
-		bmp->entries[map.entry_num]=to_be_changed & (~changer); //mask thorugh AND to get 0 (using !mask)
+		bmp->entries[map.entry_num]=to_be_changed & (~changer); //masking to get 0 (AND)
 		return to_be_changed & (~changer);
 	}
 }
