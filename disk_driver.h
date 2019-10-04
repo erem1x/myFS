@@ -10,7 +10,7 @@ typedef struct{
 	int bitmap_entries; //bytes needed to store the bitmap
 	
 	int free_blocks; //free blocks
-	int first_free_block; //first block index
+	int first_free_block; //first free block index
 } DiskHeader;
 
 typedef struct{

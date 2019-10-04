@@ -6,9 +6,10 @@
 #include <unistd.h>
 #include <sys/mman.h>
 #include "disk_driver.h"
-#include "error.h"
+#include "error.h" //standard error handler
 
-//Using a standard error handler
+//Using mmap to map our file into memory, allowing multi-process access
+//and using the same physical memory
 void DiskDriver_init(DiskDriver* disk, const char* filename, int num_blocks){
 	if(disk==NULL || filename==NULL || num_blocks<1){
 		//checking parameters
@@ -16,10 +17,10 @@ void DiskDriver_init(DiskDriver* disk, const char* filename, int num_blocks){
 	}
 	
 	int bitmap_size=num_blocks / BIT_NUM; 
-	if(num_blocks % 8) bitmap_size+=1;
+	if(num_blocks % 8) bitmap_size+=1; //round up
 	
 	int fd;
-	int is_file=access(filename, F_OK) == 0; //verify if the file exists
+	int is_file=access(filename, F_OK) == 0; //verify if file exists
 	
 	if(is_file){
 		fd=open(filename, O_RDWR, (mode_t)0666); //opens file
@@ -39,7 +40,10 @@ void DiskDriver_init(DiskDriver* disk, const char* filename, int num_blocks){
 		//file doesn't exist, creating it
 		fd=open(filename, O_RDWR | O_CREAT | O_TRUNC, (mode_t)0666);
 		ERROR_HELPER(fd, "Impossible to init disk: Error creating file\n");
+		
 		//fallocate allocs the necessary space to mmap, referring to fd
+		//offset=0, len=DiskHeader+bitmap_size, bytes writing cannot fail 
+		//in this range
 		if(posix_fallocate(fd, 0, sizeof(DiskHeader)+bitmap_size)>0){
 			//File has size=0
 			ERROR_HELPER(-1, "Impossible to init disk: Error in fallocate\n");
