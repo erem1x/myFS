@@ -74,11 +74,8 @@ int DiskDriver_readBlock(DiskDriver* disk, void* dest, int block_num){
 	
 	if(!BitMap_getBit(&bmp, block_num)) return -1; //checks if block is free
 	int fd=disk->fd;
-	//setting pointer of fd on the block to read
-	off_t offset=lseek(fd, sizeof(DiskHeader)+disk->header->bitmap_entries+(block_num*BLOCK_SIZE), SEEK_SET);
-	ERROR_HELPER(offset, "Impossible to read block: lseek error\n");
-	//using read syscall
-	int ret=read(fd, dest, BLOCK_SIZE);
+	//using pread (read with an offset)
+	int ret=pread(fd, dest, BLOCK_SIZE, sizeof(DiskHeader)+disk->header->bitmap_entries+(block_num*BLOCK_SIZE));
 	ERROR_HELPER(ret, "Impossible to read, read error\n");
 	return 0;
 }
@@ -102,24 +99,21 @@ int DiskDriver_writeBlock(DiskDriver* disk, void* src, int block_num){
 	disk->header->free_blocks-=1;
 		
 	int fd=disk->fd;
-	off_t offset=lseek(fd, sizeof(DiskHeader)+disk->header->bitmap_entries+(block_num*BLOCK_SIZE), SEEK_SET); //set pointer of fd on th block to write (just like read)
-	ERROR_HELPER(offset, "Impossible to write block: lseek error\n");
-		
-	int ret=write(fd, src, BLOCK_SIZE);
+	
+	//using pwrite, offset write
+	int ret=pwrite(fd, src, BLOCK_SIZE, sizeof(DiskHeader)+disk->header->bitmap_entries+(block_num*BLOCK_SIZE));
 	ERROR_HELPER(ret, "Impossible to write data on block\n");
 	return 0;
 }
 
 int DiskDriver_updateBlock(DiskDriver* disk, void* src, int block_num){
 	if(block_num>disk->header->bitmap_blocks || block_num<0 || src==NULL || disk==NULL){
-		ERROR_HELPER(-1, "Impossible to update block: Bad Parameters\n");
+		ERROR_HELPER(-1, "Impossible to update block: Bad Parameters");
 	}
 	//skip updating bitmap
 	int fd=disk->fd;
-	off_t offset=lseek(fd, sizeof(DiskHeader)+disk->header->bitmap_entries+(block_num*BLOCK_SIZE), SEEK_SET); //pointer of fd on block to update
-	ERROR_HELPER(offset, "Impossible to update block: lseek error\n");
-	
-	int ret=write(fd, src, BLOCK_SIZE);
+		
+	int ret=pwrite(fd, src, BLOCK_SIZE, sizeof(DiskHeader)+disk->header->bitmap_entries+(block_num*BLOCK_SIZE));
 	ERROR_HELPER(ret, "Impossible to update data on block\n");
 	return 0;
 }
