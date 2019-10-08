@@ -26,7 +26,7 @@ DirectoryHandle* SimpleFS_init(SimpleFS* fs, DiskDriver* disk){
 	DirectoryHandle* dh=(DirectoryHandle*) malloc(sizeof(DirectoryHandle));
 	dh->sfs=fs;
 	dh->dcb=fdb;
-	dh->directory=NULL;
+	dh->directory=fdb;
 	dh->pos_in_block=0;
 	
 	//handler to root
@@ -44,8 +44,7 @@ void SimpleFS_format(SimpleFS* fs){
 	//creating block for root directory, set to 0, cleaning old data
 	FirstDirectoryBlock rootDir={0};
 	rootDir.header.block_in_file=0;
-	rootDir.header.previous_block=-1;
-	rootDir.header.next_block=-1;
+	rootDir.header.previous_block=rootDir.header.next_block=-1;
 	
 	rootDir.fcb.directory_block=-1; //no parents
 	rootDir.fcb.block_in_disk=0;
@@ -57,8 +56,7 @@ void SimpleFS_format(SimpleFS* fs){
 	int bitmap_size=fs->disk->header->bitmap_entries;
 	memset(fs->disk->bitmap_data, 0, bitmap_size); //setting 0s
 	
-	ret=DiskDriver_writeBlock(fs->disk, &rootDir, 0); //writing root on block 0, DiskHeader offset already calculated
-	if(ret==-1) printf("Cannot format: writing error\n"); //can't use error helper as it's a void function
+	DiskDriver_writeBlock(fs->disk, &rootDir, 0); //writing root on block 0, DiskHeader offset already calculated
 }
 
 //checks if a file already exists, uses filename
@@ -258,34 +256,31 @@ int SimpleFS_readDir(char** names, DirectoryHandle* d){
 		for(i=0;i<FDB_space;i++){ //checks every block entry in fdb
 			//checking the name
 			if(blocks[i]>0 && DiskDriver_readBlock(disk, &to_check, blocks[i])!=-1){
+				//cut the string name if too long
 				names[num_tot]=strndup(to_check.fcb.name, MAX_NAME_LEN);
 				num_tot++;
 			}
 		}
 		
+		DirectoryBlock db;
+		
 		//checks if there are more entries in other blocks of the directory
-		if(fdb->num_entries>i){ 
-			int next=fdb->header.next_block;
-			DirectoryBlock db;
+		if(i<fdb->num_entries){ 
+			int idx=fdb->header.next_block;
 			//Checking other files/directories in other blocks of the dir
-			while(next!=-1){
-				ret=DiskDriver_readBlock(disk, &db, next);
-				if(ret==-1){
-					printf("Cannot read, problems on block\n");
-					return -1;
-				}
-				
+			while(idx!=-1){
+				DiskDriver_readBlock(disk, &db, idx);
 				int* blocks=db.file_blocks;
 				//checks every block indicator in fdb directory
 				for(i=0;i<DB_space;i++){
 					//reades the FirstFileBlock of the file to check its name
 					if(blocks[i]>0 && DiskDriver_readBlock(disk, &to_check, blocks[i])!=-1){ 
-						names[num_tot]=strndup(to_check.fcb.name, MAX_NAME_LEN);
+						names[num_tot]=strndup(to_check.fcb.name, MAX_NAME_LEN); //MAX_NAME_LEN=most size
 						num_tot++;
 					}
 				}
 				
-				next=db.header.next_block; //next directoryBlock
+				idx=db.header.next_block; //next directoryBlock
 			}
 		}
 	}
@@ -323,11 +318,6 @@ FileHandle* SimpleFS_openFile(DirectoryHandle* d, const char* filename){
 		//checking if file is in another block of the dir
 		while(next!=-1 && !found){
 			ret=DiskDriver_readBlock(disk, &db, next);
-			if(ret==-1){
-				printf("Cannot open file: problems on readBlock\n");
-				return NULL;
-			}
-			
 			//checking if file is in db
 			pos=checkFileExistence(disk, DB_space, db.file_blocks, filename);
 			if(pos>=0){
@@ -357,10 +347,12 @@ FileHandle* SimpleFS_openFile(DirectoryHandle* d, const char* filename){
 }
 
 int SimpleFS_close(FileHandle* f){
+	if(f==NULL) return -1;
 	free(f->fcb);
 	free(f);
 	return 0;
 }
+
 
 int SimpleFS_write(FileHandle* f, void* data, int size){
 	FirstFileBlock* ffb=f->fcb;
@@ -465,8 +457,6 @@ int SimpleFS_write(FileHandle* f, void* data, int size){
  }
 	
 	
-
-	
 int SimpleFS_read(FileHandle* f, void* data, int size){
 	FirstFileBlock* ffb=f->fcb;
 	
@@ -530,11 +520,12 @@ int SimpleFS_read(FileHandle* f, void* data, int size){
 }
 
 int SimpleFS_seek(FileHandle* f, int pos){
+	if(pos<0) ERROR_HELPER(-1, "Cannot seek: wrong position\n"); //checking if valid pos
 	//using an aux structure
 	FirstFileBlock* ffb=f->fcb;
 	
 	if(pos>ffb->fcb.written_bytes){
-		printf("Invalid position\n");
+		printf("%sInvalid position\n%s", RED, RESET);
 		return -1;
 	}
 	
@@ -643,6 +634,7 @@ int SimpleFS_mkDir(DirectoryHandle* d, char* dirname){
 	if(d==NULL || dirname==NULL) ERROR_HELPER(-1, "Cannot create directory, bad parameters\n");
 	
 	int ret=0;
+	//no side effect
 	FirstDirectoryBlock* fdb=d->dcb;
 	DiskDriver* disk=d->sfs->disk;
 	
@@ -695,6 +687,7 @@ int SimpleFS_mkDir(DirectoryHandle* d, char* dirname){
 		printf("Cannot create directory: writeBlock error\n");
 		return -1;
 	}
+	free(new_dir);
 	
 	int i=0;
 	int found=0;
@@ -907,6 +900,7 @@ int SimpleFS_remove(DirectoryHandle* d, char* filename){
 		fdb->num_entries=-1;
 		DiskDriver_updateBlock(d->sfs->disk, db_tmp, block_in_disk);
 		DiskDriver_updateBlock(d->sfs->disk, fdb, fdb->fcb.block_in_disk);
+		free(db_tmp);
 		return ret;
 	}
 	
@@ -914,6 +908,7 @@ int SimpleFS_remove(DirectoryHandle* d, char* filename){
 		fdb->file_blocks[id]=-1;
 		fdb->num_entries-=1;
 		DiskDriver_updateBlock(d->sfs->disk, fdb, fdb->fcb.block_in_disk);
+		free(db_tmp);
 		return ret;
 	}
 	
