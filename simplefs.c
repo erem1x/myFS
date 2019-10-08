@@ -358,8 +358,9 @@ int SimpleFS_write(FileHandle* f, void* data, int size){
 	FirstFileBlock* ffb=f->fcb;
 	 int written_bytes=0;
 	 int to_write=size;
-	 int off=f->pos_in_file;
-	 
+	 int off=f->pos_in_file; //cursor
+	 if(off==0 && f->fcb->fcb.written_bytes==0) printf("%sPointer set to 0.\nRemember to use %sseek%s, otherwise other %swrite%s calls will overwrite file's content\n%s", BLUE, YELLOW, BLUE, YELLOW,BLUE, RESET);
+	 else if(off==0 && f->fcb->fcb.written_bytes!=0) printf("%sPointer set to 0.\nOverwriting data\n%s", RED, RESET);
 	 //if bytes to be written are smaller or equal to available space
 	 if(off<FFB_space && to_write<=FFB_space-off){
 		 //writing bytes
@@ -369,6 +370,7 @@ int SimpleFS_write(FileHandle* f, void* data, int size){
 			 ffb->fcb.written_bytes=f->pos_in_file+written_bytes;
 		 }
 		 DiskDriver_updateBlock(f->sfs->disk, ffb, ffb->fcb.block_in_disk);
+		 printf("\n%s%d%s bytes wrote", YELLOW, written_bytes, RESET);
 		 return written_bytes;
 	 }
 	 
@@ -379,7 +381,7 @@ int SimpleFS_write(FileHandle* f, void* data, int size){
 		 DiskDriver_updateBlock(f->sfs->disk, ffb, ffb->fcb.block_in_disk);
 		 off=0;
 	 }
-	 else off-=FFB_space;
+	 else off-=FFB_space; //next_block is not empty
 	 
 	 //id on disk current block
 	 int block_in_disk=ffb->fcb.block_in_disk;
@@ -434,6 +436,7 @@ int SimpleFS_write(FileHandle* f, void* data, int size){
 			 }
 			 DiskDriver_updateBlock(f->sfs->disk, ffb, ffb->fcb.block_in_disk);
 			 DiskDriver_updateBlock(f->sfs->disk, &tmp, next_block);
+			 printf("\n%s%d%s bytes wrote", YELLOW, written_bytes, RESET);
 			 return written_bytes;
 		 }
 		 
@@ -452,7 +455,7 @@ int SimpleFS_write(FileHandle* f, void* data, int size){
 		 next_block=tmp.header.next_block;
 		 block_in_file=tmp.header.block_in_file; //id next block
 	 }
-	 
+	 printf("\n%s%d%s bytes wrote", YELLOW, written_bytes, RESET);
 	 return written_bytes;
  }
 	
@@ -477,10 +480,10 @@ int SimpleFS_read(FileHandle* f, void* data, int size){
 		memcpy(data, ffb->data+off, to_read);
 		bytes_read+=to_read;
 		to_read=size-bytes_read;
-		f->pos_in_file+=bytes_read; //updating
+		f->pos_in_file+=bytes_read; //updating pointer
 		return bytes_read;
 	}
-	//else, we continue 
+	//else, we continue (more than one block)
 	else if(off<FFB_space && to_read>FFB_space-off){
 		memcpy(data, ffb->data+off, FFB_space-off);
 		bytes_read+=FFB_space-off;
@@ -914,16 +917,3 @@ int SimpleFS_remove(DirectoryHandle* d, char* filename){
 	
 	return -1;
 }
-				
-			
-			
-		
-				
-			
-		
-	
-		
-
-
-
-	
