@@ -14,4 +14,4 @@ shell: shell.c bitmap.c disk_driver.c simplefs.c $(HEADERS)
 .phony: clean
 
 clean: 
-		rm -f *.o shell disk.txt
+		rm -f *.o shell disk.txt test2.txt
