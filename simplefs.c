@@ -39,24 +39,25 @@ void SimpleFS_format(SimpleFS* fs){
 		ERROR_HELPER(-1, "Impossible to format: Bad Parameters\n");
 	}
 	
+	int bitmap_size=fs->disk->header->bitmap_entries;
+	memset(fs->disk->bitmap_data, 0, bitmap_size); //setting 0s
+	fs->disk->header->free_blocks=fs->disk->header->num_blocks; //clearing bitmap
+	fs->disk->header->first_free_block=0; //starts at 0
+	
 	int ret=0;
 	
 	//creating block for root directory, set to 0, cleaning old data
-	FirstDirectoryBlock rootDir={0};
-	rootDir.header.block_in_file=0;
-	rootDir.header.previous_block=rootDir.header.next_block=-1;
+	FirstDirectoryBlock root={0};
+	root.header.block_in_file=0;
+	root.header.previous_block=root.header.next_block=-1;
 	
-	rootDir.fcb.directory_block=-1; //no parents
-	rootDir.fcb.block_in_disk=0;
-	rootDir.fcb.is_dir=1;
-	strcpy(rootDir.fcb.name, "/");
+	root.fcb.directory_block=-1; //no parents
+	root.fcb.block_in_disk=0;
+	root.fcb.is_dir=1;
+	strcpy(root.fcb.name, "/");
 	
-	fs->disk->header->free_blocks=fs->disk->header->num_blocks; //clearing bitmap
-	fs->disk->header->first_free_block=0; //starts at 0
-	int bitmap_size=fs->disk->header->bitmap_entries;
-	memset(fs->disk->bitmap_data, 0, bitmap_size); //setting 0s
 	
-	DiskDriver_writeBlock(fs->disk, &rootDir, 0); //writing root on block 0, DiskHeader offset already calculated
+	DiskDriver_writeBlock(fs->disk, &root, 0); //writing root on block 0, DiskHeader offset already calculated
 }
 
 //checks if a file already exists, uses filename
@@ -117,8 +118,7 @@ FileHandle* SimpleFS_createFile(DirectoryHandle* d, const char* filename){
 	//using calloc to set 0's in the file
 	FirstFileBlock* new_file=calloc(1, sizeof(FirstFileBlock));
 	new_file->header.block_in_file=0;
-	new_file->header.next_block=-1;
-	new_file->header.previous_block=-1;
+	new_file->header.previous_block=new_file->header.next_block=-1;
 	
 	new_file->fcb.directory_block=fdb->fcb.block_in_disk;
 	new_file->fcb.block_in_disk=new_block;
@@ -126,7 +126,7 @@ FileHandle* SimpleFS_createFile(DirectoryHandle* d, const char* filename){
 	new_file->fcb.written_bytes=0;
 	strncpy(new_file->fcb.name, filename, MAX_NAME_LEN);
 	
-	//writing file in disk
+	//writing file on disk
 	ret=DiskDriver_writeBlock(disk, new_file, new_block);
 	if(ret==-1){
 		printf("Cannot create file: problems on writeBlock\n");
