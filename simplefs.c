@@ -54,6 +54,7 @@ void SimpleFS_format(SimpleFS* fs){
 	root.fcb.directory_block=-1; //no parents
 	root.fcb.block_in_disk=0;
 	root.fcb.is_dir=1;
+	root.fcb.size_in_blocks=1;
 	strcpy(root.fcb.name, "/");
 	
 	
@@ -124,6 +125,7 @@ FileHandle* SimpleFS_createFile(DirectoryHandle* d, const char* filename){
 	new_file->fcb.block_in_disk=new_block;
 	new_file->fcb.is_dir=0;
 	new_file->fcb.written_bytes=0;
+	new_file->fcb.size_in_blocks=1;
 	strncpy(new_file->fcb.name, filename, MAX_NAME_LEN);
 	
 	//writing file on disk
@@ -354,6 +356,46 @@ int SimpleFS_close(FileHandle* f){
 }
 
 
+int SimpleFS_formatFile(FileHandle* f){
+	FirstFileBlock* ffb=f->fcb; //using an aux structure
+	int blocks=ffb->fcb.size_in_blocks;
+	if(blocks==1){ //if data is only stored in ffb
+		memset(ffb->data, 0, FFB_space); //setting memory to 0 
+		ffb->fcb.written_bytes=0;
+		DiskDriver_updateBlock(f->sfs->disk, ffb, ffb->fcb.block_in_disk);
+		f->pos_in_file=0; //setting cursor to the start
+		return 0;
+	}
+	
+	else{ //more blocks
+		FileBlock tmp;
+		int block_in_disk=ffb->fcb.block_in_disk;
+		int next_block=ffb->header.next_block;
+		int block_in_file=ffb->header.block_in_file;
+		while(next_block!=-1){ //while there are next blocks, keep cycling
+			ffb->fcb.size_in_blocks--;
+			DiskDriver_readBlock(f->sfs->disk, &tmp, next_block);
+			memset(tmp.data, 0, FB_space);
+			DiskDriver_freeBlock(f->sfs->disk, next_block); //freeing blocks
+			next_block=tmp.header.next_block;
+		}
+		
+		memset(ffb->data, 0, FFB_space); //ffb at last
+		ffb->fcb.written_bytes=0;
+		DiskDriver_updateBlock(f->sfs->disk, ffb, ffb->fcb.block_in_disk);
+		f->pos_in_file=0;
+		
+		return 0;
+	}
+			
+			
+	
+	return -1;
+}
+	
+	
+
+
 int SimpleFS_write(FileHandle* f, void* data, int size){
 	 FirstFileBlock* ffb=f->fcb;
 	 int written_bytes=0;
@@ -395,6 +437,7 @@ int SimpleFS_write(FileHandle* f, void* data, int size){
 	 
 	 while(written_bytes<size){
 		 if(next_block==-1){
+			 ffb->fcb.size_in_blocks+=1;
 			 //a new block if space for data is over
 			 FileBlock new={0};
 			 new.header.block_in_file=block_in_file+1;
@@ -403,7 +446,7 @@ int SimpleFS_write(FileHandle* f, void* data, int size){
 			 
 			 //updating next block's id
 			 next_block=DiskDriver_getFreeBlock(f->sfs->disk, block_in_disk);
-			 if(one_block==1){ //FirstFileBlock case
+			 if(one_block==1){ //No next block allocated
 				 ffb->header.next_block=next_block;
 				 DiskDriver_updateBlock(f->sfs->disk, ffb, ffb->fcb.block_in_disk);
 				 one_block=0;

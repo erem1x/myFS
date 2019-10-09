@@ -34,6 +34,7 @@ typedef struct{
 	int block_in_disk; //repeated position of the block on the disk
 	char name[128];
 	int written_bytes; //only for files
+	int size_in_blocks; //how many blocks
 	int is_dir; //0 for file, 1 for dir
 } FileControlBlock;
 	
@@ -138,6 +139,10 @@ int SimpleFS_read(FileHandle* f, void* data, int size);
 // returns pos on success
 // -1 on error (file too short)
 int SimpleFS_seek(FileHandle* f, int pos);
+
+//deletes every data present in a given file, side effecting it
+//returns 0 on success
+int SimpleFS_formatFile(FileHandle* f);
 
 // seeks for a directory in d. If dirname is equal to ".." it goes one level up
 // 0 on success, negative value on error

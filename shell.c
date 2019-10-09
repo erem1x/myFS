@@ -60,6 +60,7 @@ void print_cmd_info(void){
 void print_file_info(void){
 	printf("\t\t\t%sUsage:\n\t%swrite%s <data> \t\t Writes %sdata%s on file\n", YELLOW, RED, RESET, GREEN, RESET);
 	printf("\t%sread%s <size> \t\t Reads %ssize%s bytes on file\n", RED, RESET, GREEN, RESET);
+	printf("\t%sformat%s \t\t\t Removes all the content on file\n", RED, RESET);
 	printf("\t%sseek%s <pos> \t\t Moves file pointer at %spos%s\n", RED, RESET, GREEN, RESET);
 	printf("\n\t%sinfo%s (i) \t\t Prints file info\n", RED, RESET);
 	printf("\t%shelp%s (h) \t\t Prints command info\n", RED, RESET);
@@ -91,13 +92,22 @@ int do_file_cmd(FileHandle* f, char arg_buf[MAX_ARGS][MAX_LINE], unsigned arg_nu
 	
 	//info
 	else if(cmp(arg_buf, "info") || cmp(arg_buf, "i")){
-		if(f->fcb->header.next_block!=-1) printf("There is also a next block");
-		else printf("Single block\n");
 		printf("\t%sFILE '%s'--->\n%s", YELLOW, f->fcb->fcb.name, RESET);
 		printf("\n\t\t%sPosition on file:%s %d\n", RED, RESET, f->pos_in_file);
 		printf("\t\t%sBytes written: %s%d\n", RED, RESET, f->fcb->fcb.written_bytes);
 		printf("\t\t%sMax current readable size: %s%d\n", RED, RESET, f->fcb->fcb.written_bytes - f->pos_in_file);
+		printf("\t\t%sSize in blocks: %s%d\n", RED, RESET, f->fcb->fcb.size_in_blocks);
 	}
+	
+	
+	//format
+	else if(cmp(arg_buf, "format")){
+		if(arg_num==1){
+			if(SimpleFS_formatFile(f)==0) printf("%sContent successfully removed%s", YELLOW, RESET);
+		}
+		else printf("%sUsage:%s format\n", YELLOW, RESET);
+	}
+	
 	
 	//write
 	else if(cmp(arg_buf, "write")){
