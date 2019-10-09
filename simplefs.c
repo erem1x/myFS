@@ -355,7 +355,7 @@ int SimpleFS_close(FileHandle* f){
 
 
 int SimpleFS_write(FileHandle* f, void* data, int size){
-	FirstFileBlock* ffb=f->fcb;
+	 FirstFileBlock* ffb=f->fcb;
 	 int written_bytes=0;
 	 int to_write=size;
 	 int off=f->pos_in_file; //cursor
@@ -441,7 +441,7 @@ int SimpleFS_write(FileHandle* f, void* data, int size){
 		 }
 		 
 		 else if(off<FB_space && to_write>FB_space-off){
-			 //writing last bytes (same as before)
+			 //writing last bytes (same as before), then cycling again with next block
 			 memcpy(tmp.data+off, (char*)data+written_bytes, FB_space-off);
 			 written_bytes+=FB_space-off;
 			 to_write=size-written_bytes;
@@ -475,8 +475,9 @@ int SimpleFS_read(FileHandle* f, void* data, int size){
 	int bytes_read=0;
 	int to_read=size;
 	
-	//bytes to read<=available space
-	if(off<FFB_space && to_read<=FFB_space-off){
+	//here we have 2 main cases: data to read is all stored in FFB or
+	//is also stored in next FB's
+	if(off<FFB_space && to_read<=FFB_space-off){ //bytes to read<=available space
 		memcpy(data, ffb->data+off, to_read);
 		bytes_read+=to_read;
 		to_read=size-bytes_read;
@@ -494,10 +495,11 @@ int SimpleFS_read(FileHandle* f, void* data, int size){
 	else off-=FFB_space;
 	
 	int next_block=ffb->header.next_block; //id of next block
-	FileBlock tmp; //temporary structure
+	FileBlock tmp;
 	
 	//cycling 'till all bytes are read 
 	while(bytes_read<size && next_block!=-1){
+		DiskDriver_readBlock(f->sfs->disk, &tmp, next_block);
 		//bytes<=available space
 		if(off<FB_space && to_read<=FB_space-off){
 			memcpy(data+bytes_read, tmp.data+off, to_read);
